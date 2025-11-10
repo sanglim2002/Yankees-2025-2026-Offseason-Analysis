@@ -19,5 +19,11 @@ This case study by Samuel Anglim is a "Track B" capstone project for the Google 
   8. **Targeted Acquisitions:** Which available free agents or trade targets are the most **cost-effective** solutions to fill these gaps, weighing both financial cost (salary) and asset cost (prospects)?
 
  ## Phase 2: Prepare
-
+* **Data Sources:** Data was aggregated from several credible, public sources.
+    * **Payroll & Contracts:** [Spotrac](https://www.spotrac.com/mlb/) (Used for 2025-2026 payroll and financial outlook).
+    * **Revenue:** [Forbes MLB Team Valuations](https://www.forbes.com/mlb-valuations/list/) (Used for 2025 revenue estimates).
+    * **Advanced Player/Team Stats:** [FanGraphs](https://www.fangraphs.com/) (Used for P/PA, Contact%, OBP, WAR, wOBA, K%, ERA+).
+    * **Historical Data:** [Sean Lahman Baseball Database](http://www.seanlahman.com/baseball-archive/statistics/) (Used to build the 10-year playoff benchmark model from 2015-2025).
+* **Data Organization:** Data was downloaded as CSVs. Team-level data (financials, team stats) was merged. Player-level data (free agents, trade targets) was kept separate for analysis.
+* **Data Credibility (ROCCC):** The data is **R**eliable (sourced from industry-standard reports), **O**riginal (primary sources like Forbes/Spotrac), **C**omprehensive, **C**urrent, and **C**ited.
  
