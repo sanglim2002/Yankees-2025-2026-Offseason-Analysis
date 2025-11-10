@@ -15,3 +15,9 @@ This case study by Samuel Anglim is a "Track B" capstone project for the Google 
   4. **Statistical Benchmarking (Pitching):** What pitching and defensive profiles have defined championship-winning teams over the last 5-10 years?
   5. **Gap Analysis (Offense):** How did the 2025 Yankees' offense compare to this 10-year benchmark, especially in P/PA?
   6. **Gap Analysis (Pitching):** How did the 2025 Yankees' pitching staff compare to this 10-year benchmark in P/PA and K%?
+  7. **2026 Financial Outlook:** How much payroll is coming off the books in 2026, and what is the projected luxury tax situation?
+  8. **Targeted Acquisitions:** Which available free agents or trade targets are the most **cost-effective** solutions to fill these gaps, weighing both financial cost (salary) and asset cost (prospects)?
+
+ ## Phase 2: Prepare
+
+ 
