@@ -1,0 +1,258 @@
+---
+title: "An Analytical Approach to the NY Yankees 2025-2026 Offseason"
+author: "Samuel Anglim"
+date: "2025-11-11"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse) # For all data manipulation (dplyr, ggplot2, readr)
+library(janitor)   # For the clean_names() function
+library(ggrepel)   # For cleaner plot labels
+
+```
+
+```{r}
+# --- 1. Load 2025 Data ---
+financial_revenue <- read_csv("data/2025_team_revenue.csv")
+financial_payroll_2026 <- read_csv("data/2026_team_payroll.csv")
+
+# 2025 Batting Stats
+batting_2025_xwoba <- read_csv("data/expected_stats_2025.csv")
+batting_2025_ppa <- read_csv("data/savant_player_swingtake_2025.csv")
+
+# 2025 Pitching Stats
+pitching_2025_ppa <- read_csv("data/team_pitching_2025.csv")
+
+# --- 2. Load Historical Data (2015-2024) ---
+# (Loading from the main 'data/' folder, as you confirmed)
+
+# Read all 10 xwOBA files
+hist_xwoba_files <- list.files(path = "data/", pattern = "xwoba_20[1-2][0-9].csv", full.names = TRUE)
+hist_team_xwoba <- map_dfr(hist_xwoba_files, read_csv)
+
+# Read all 10 P/PA files
+hist_ppa_files <- list.files(path = "data/", pattern = "ppa_20[1-2][0-9].csv", full.names = TRUE)
+hist_player_ppa <- map_dfr(hist_ppa_files, read_csv)
+
+```
+
+```{r}
+# --- Clean 2025 Financials ---
+revenue_cleaned <- financial_revenue %>% clean_names() %>%
+  mutate(revenue_2024_num = parse_number(revenue_2024) * 1e6)
+payroll_cleaned <- financial_payroll_2026 %>% clean_names() %>%
+  mutate(payroll_2026_num = parse_number(payroll_2026))
+financial_data <- revenue_cleaned %>%
+  left_join(payroll_cleaned, by = "team")
+
+# --- Clean 2025 Batting Data ---
+# 1. Get 2025 P/PA
+team_2025_ppa <- batting_2025_ppa %>%
+  clean_names() %>%
+  rename(team_numeric = team_id) %>%
+  mutate(p_pa = pitches / pa) %>%
+  group_by(team_numeric) %>%
+  summarize(
+    p_pa_batter = weighted.mean(p_pa, pa, na.rm = TRUE)
+  )
+
+# 2. Get 2025 xwOBA
+team_2025_xwoba <- batting_2025_xwoba %>%
+  clean_names() %>%
+  mutate(team_id = str_trim(team_id)) %>% # Clean whitespace
+  select(team_id, team_name = team, pa, xwoba = est_woba)
+```
+
+```{r}
+# --- 1. Aggregate Historical P/PA ---
+hist_team_ppa <- hist_player_ppa %>%
+  clean_names() %>%
+  rename(team_numeric = team_id) %>%
+  mutate(p_pa = pitches / pa) %>%
+  group_by(team_numeric, year) %>%
+  summarize(
+    p_pa_batter = weighted.mean(p_pa, pa, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# --- 2. Clean Historical xwOBA ---
+hist_team_xwoba <- hist_team_xwoba %>%
+  clean_names() %>%
+  select(team_id, year, pa, xwoba = est_woba)
+
+# --- 3. Create the Benchmarks ---
+# We will create two benchmarks:
+# A) The 10-Year League Average
+# B) The 10-Year "Playoff-Caliber" Average (Top 10 offenses by xwOBA)
+
+# xwOBA Benchmark (Top 10 offenses per year)
+xwoba_benchmark <- hist_team_xwoba %>%
+  group_by(year) %>%
+  slice_max(order_by = xwoba, n = 10) %>% # Get Top 10 teams
+  ungroup() %>%
+  summarize(
+    avg_xwoba_benchmark = weighted.mean(xwoba, pa, na.rm = TRUE)
+  )
+
+# P/PA Benchmark (League-wide average over 10 years)
+ppa_benchmark <- hist_team_ppa %>%
+  summarize(
+    avg_ppa_benchmark = mean(p_pa_batter, na.rm = TRUE)
+  )
+
+```
+
+``` {r}
+
+# --- 1. The 10-Year Advanced Benchmarks ---
+print("10-Year Benchmark for Top 10 Offenses (xwOBA):")
+print(xwoba_benchmark)
+
+print("10-Year League Average Benchmark (P/PA):")
+print(ppa_benchmark)
+
+# --- 2. The 2025 P/PA Analysis (Process) ---
+yankees_ppa_2025 <- team_2025_ppa %>%
+  filter(team_numeric == 147) %>%
+  pull(p_pa_batter)
+
+print("Yankees 2025 P/PA (Batting):")
+print(yankees_ppa_2025)
+
+# --- 3. The 2025 xwOBA Analysis (Outcome) ---
+yankees_xwoba_2025 <- team_2025_xwoba %>%
+  filter(team_id == "NYY") %>%
+  pull(xwoba)
+
+print("Yankees 2025 xwOBA (Batting):")
+print(yankees_xwoba_2025)
+
+# --- 4. The 2025 Financials ---
+yankees_financials <- financial_data %>%
+  filter(team == "New York Yankees")
+print("Yankees Financials:")
+print(yankees_financials)
+
+```
+
+```{r}
+
+# PLOT 1: Yankees Offensive Gap (PROCESS = P/PA)
+plot_data_ppa <- tibble(
+  Category = c("Yankees 2025", "10-Year Avg"),
+  PPA = c(yankees_ppa_2025, ppa_benchmark$avg_ppa_benchmark)
+)
+ggplot(plot_data_ppa, aes(x = Category, y = PPA, fill = Category)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(PPA, 3)), vjust = -0.5) +
+  scale_fill_manual(values = c("10-Year Avg" = "grey", "Yankees 2025" = "#003087")) +
+  labs(title = "Offensive Process: Yankees P/PA vs. 10-Year Average",
+       y = "Pitches per Plate Appearance (P/PA)") +
+  theme_minimal() + theme(legend.position = "none")
+```
+
+```{r}
+
+# PLOT 2: Yankees Offensive Gap (OUTCOME = xwOBA)
+plot_data_xwoba <- tibble(
+  Category = c("Yankees 2025", "10-Year Benchmark (Top 10)"),
+  xwOBA = c(yankees_xwoba_2025, xwoba_benchmark$avg_xwoba_benchmark)
+)
+ggplot(plot_data_xwoba, aes(x = Category, y = xwOBA, fill = Category)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(xwOBA, 3)), vjust = -0.5) +
+  scale_fill_manual(values = c("10-Year Benchmark (Top 10)" = "grey", "Yankees 2025" = "#003087")) +
+  labs(title = "Offensive Outcome: Yankees xwOBA vs. 10-Year Benchmark",
+       subtitle = "Benchmark is the avg xwOBA of the Top 10 offenses (2015-2024)",
+       y = "Expected wOBA (xwOBA)") +
+  theme_minimal() + theme(legend.position = "none")
+
+```
+
+
+```{r analyze-targets}
+
+# --- 1. Load the 2025 PLAYER-LEVEL files ---
+# (We will use the benchmark variables we created in the 'build-benchmark' chunk)
+
+# Load the NEW file you just downloaded
+player_xwoba_data <- read_csv("data/player_expected_stats_2025.csv") %>%
+  clean_names() %>%
+  # We need to add team_id, which is missing. We'll join it from the P/PA file.
+  select(player_id, last_name_first_name, pa_xwoba = pa, woba, xwoba = est_woba)
+
+# Load the player P/PA file we already have
+player_ppa_data <- read_csv("data/savant_player_swingtake_2025.csv") %>%
+  clean_names() %>%
+  mutate(p_pa = pitches / pa) %>%
+  # We need team_id from this file to filter out current Yankees
+  select(player_id, team_numeric = team_id, pa_ppa = pa, p_pa)
+
+# --- 2. Join the Datasets ---
+# Create a master 2025 player file with all our key metrics
+all_player_stats_2025 <- player_xwoba_data %>%
+  left_join(player_ppa_data, by = "player_id") %>%
+  # Filter for qualified hitters (e.g., > 300 PA)
+  filter(pa_xwoba > 300)
+
+# --- 3. Filter for Targets ---
+# Find players who meet our benchmarks AND are NOT already on the Yankees (team 147)
+# We will use the benchmark variables we already created:
+# - xwoba_benchmark$avg_xwoba_benchmark
+# - ppa_benchmark$avg_ppa_benchmark
+
+target_players <- all_player_stats_2025 %>%
+  filter(
+    xwoba > xwoba_benchmark$avg_xwoba_benchmark &
+    p_pa > ppa_benchmark$avg_ppa_benchmark &
+    team_numeric != 147 # Filter OUT current Yankees
+  ) %>%
+  
+  # --- THIS IS THE CHANGE ---
+  arrange(-p_pa) # Sort by P/PA (descending) instead of xwOBA
+  # ------------------------
+
+# --- 4. Print the Recommendation ---
+print("--- 2025 Hitters Leading in Devised Metrics (High xwOBA & High P/PA) ---")
+
+# Add n = Inf to force R to print all rows
+print(target_players, n = Inf)
+```
+
+```{r}
+
+# This chart shows the list of hitters who led the league in our mathematically made metric, p/pa, and were the in the top 50 in xWOBA%. Not every single one of these players are free agents, but combining a high p/pa and xWOBA% has been key to postseason success, and the Yankees could use this reference list to improve their team and fill possible offensive gaps. Some notable free agents on top of this list include: DH Kyle Schwarber, 2B Gleyber Torres, 1B Pete Alonso, and SS J.P. Crawford. There are also a few players on this list who are possible trade candidates, as the respective clubs these players belong to have been in trade discussions. They include but are not limited to: SS Geraldo Perdomo, 3B Manny Machado, OF Steven Kwan, and SS Zach Neto.
+
+# This next chart is a visualization of where the Yankees compare to the rest of the league in terms of revenue to payroll. Their 2025 financials and 2026 projected payroll has previously been computed in this code.
+
+# PLOT 3: 2026 Payroll Projections (Yankees Highlighted)
+
+# Create a new column to identify the Yankees
+payroll_plot_data <- payroll_cleaned %>%
+  mutate(is_yankees = ifelse(team == "New York Yankees", "Yankees", "Other"))
+
+ggplot(payroll_plot_data, aes(x = reorder(team, -payroll_2026_num), y = payroll_2026_num, fill = is_yankees)) +
+  geom_bar(stat = "identity") +
+  
+  # Set the colors: Yankees blue, and a neutral grey for others
+  scale_fill_manual(values = c("Yankees" = "#003087", "Other" = "grey")) +
+  
+  scale_y_continuous(labels = scales::dollar_format(scale = 1e-6, suffix = "M")) +
+  labs(title = "2026 Projected Payrolls",
+       subtitle = "Yankees (in blue) have financial room to move.",
+       x = "", 
+       y = "Projected 2026 Payroll",
+       caption = "Data Source: Spotrac (Manual)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(), # Hide all X-axis team names
+    axis.ticks.x = element_blank(), # Remove X-axis ticks
+    legend.position = "none"      # Hide the legend (colors are self-explanatory)
+  )
+```
